@@ -22,10 +22,10 @@ class QuickDrawDataset(data.Dataset):
         
         for i, label in enumerate(self.labels):
             self.labels_to_indices[label] = i
-    
+
     def __len__(self):
         return len(self.list_IDs)
-    
+
     def __getitem__(self, index):
         """
         @returns drawing_decoded - np.array (img_size x img_size x 3): drawing 
@@ -59,7 +59,7 @@ class QuickDrawDataset(data.Dataset):
                 drawing = ndjson.load(f)
                 raw_strokes = drawing[0]['drawing']
                 label = self.labels_to_indices[drawing[0]['word']]
-            
+
             transformed = data_utils.affine_transform_drawing(raw_strokes, box)
             composite_sketch += transformed
             labels.append(label)
