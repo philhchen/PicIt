@@ -1,4 +1,5 @@
 import cv2
+import multiprocessing as mp
 import ndjson
 import numpy as np
 import os
@@ -9,31 +10,48 @@ DIR_NAME = os.path.join(
     os.path.dirname(__file__), '../dataset'
 )
 
-def save_training_example(drawing, path, list_ids=None):
+def save_training_example(drawing, path):
     """
     Saves a single training example to the directory of specified path. The
-    filename will be set to the key_id. If list_ids is not None, the filename
-    will be added to list_ids.
+    filename will be set to the key_id.
 
     @param drawing - dict: raw data from the Quick! Draw dataset with keys 
                            'word', 'key_id', and 'drawing'
     @param path - str: folder where training examples will be stored
-    @param list_ids - list: list of all the filenames of the training examples
+
+    @returns str - the filename where the training example is saved.
     """
     filename = os.path.join(path, drawing['key_id'] + '.ndjson')
-    if list_ids != None:
-        list_ids.append(filename)
-    if os.path.exists(filename):
-        return
+    if not os.path.exists(filename):
+        drawing_simplified = [{
+            'word': drawing['word'],
+            'key_id': drawing['key_id'],
+            'drawing': drawing['drawing']
+        }]
+        with open(filename, mode='w') as f:
+            writer = ndjson.dump(drawing_simplified, f)
+    return filename
 
-    drawing_simplified = [{
-        'word': drawing['word'],
-        'key_id': drawing['key_id'],
-        'drawing': drawing['drawing']
-    }]
+def parse_label(filename, path=DIR_NAME):
+    """
+    Helper for parse_dataset: parses a single .ndjson file associated with the
+    specified path
+    @param filename (str): string specifying the path to the .ndjson file to
+                            parse
+    """
+    list_ids = []
+    label, _ = os.path.splitext(filename)
 
-    with open(filename, mode='w') as f:
-        writer = ndjson.dump(drawing_simplified, f)
+    full_filename = os.path.join(path, filename)
+    with open(full_filename) as f:
+        dir_name = os.path.join(path, label)
+        if not os.path.exists(dir_name):
+            os.makedirs(dir_name)
+        drawings = ndjson.load(f)
+        for drawing in drawings:
+            example_filename = save_training_example(drawing, dir_name)
+            list_ids.append(example_filename)
+    return list_ids
 
 def parse_dataset(path=DIR_NAME):
     """
@@ -46,10 +64,9 @@ def parse_dataset(path=DIR_NAME):
         (relative to path)
     @returns list containing all the labels of the dataset
     """
-    directory = os.fsencode(path)
     list_ids = []
     labels = set()
-    
+
     # If the filenames.txt file already exists, parse the file to find
     # list_ids and labels, and return early
     list_ids_filename = os.path.join(path, 'filenames.txt')
@@ -62,24 +79,25 @@ def parse_dataset(path=DIR_NAME):
         return list_ids, labels
 
     # Loop through all '.ndjson' files and split into individual files
-    for file in os.listdir(directory):
-        filename = os.fsdecode(file)
-        label, ext = os.path.splitext(filename)
-        labels.add(label)
-        if ext != '.ndjson':
-            continue
+    pool = mp.Pool(mp.cpu_count())
+    files = os.listdir(path)
+    files = [f for f in files if os.path.splitext(f)[1] == '.ndjson']
+    list_ids_temp = []
+    pool.map_async(parse_label, files, callback=list_ids_temp.extend)
+    pool.close()
+    pool.join()
 
-        full_filename = os.path.join(path, filename)
-        with open(full_filename) as f:
-            dir_name = os.path.join(path, label)
-            if not os.path.exists(dir_name):
-                os.makedirs(dir_name)
-            drawings = ndjson.load(f)
-            for drawing in drawings:
-                save_training_example(drawing, dir_name, list_ids)
+    # Convert list_ids_temp from list of lists to just a list
+    list_ids = []
+    for list_id in list_ids_temp:
+        list_ids += list_id
 
+    # Write output to 'dataset/filename.txt' and find all labels
     with open(list_ids_filename, 'w') as f:
         ndjson.dump(list_ids, f)
+    for list_id in list_ids:
+        label = os.path.basename(os.path.dirname(list_id))
+        labels.add(label)
     return list_ids, list(labels)
 
 def decode_drawing(raw_strokes, line_thickness=5, time_color=True,
