@@ -30,7 +30,9 @@ def save_training_example(drawing, path):
         }]
         with open(filename, mode='w') as f:
             writer = ndjson.dump(drawing_simplified, f)
-    return filename
+
+    # Return only the label with the key_id for sake of space.
+    return os.path.join(drawing['word'], drawing['key_id'] + '.ndjson')
 
 def parse_label(filename, path=DIR_NAME):
     """
