@@ -1,9 +1,10 @@
-import cv2
 import multiprocessing as mp
 import ndjson
-import numpy as np
 import os
 import random
+
+import cv2
+import numpy as np
 import skimage.transform
 
 DIR_NAME = os.path.join(
@@ -103,7 +104,7 @@ def parse_dataset(path=DIR_NAME):
     return list_ids, list(labels)
 
 def decode_drawing(raw_strokes, line_thickness=5, time_color=True,
-                   part_color=True, num_channels=3, size=128):
+                   part_color=True, num_channels=3, size=224):
     """
     Decodes a drawing from its raw strokes into a numpy array
     @param raw_strokes - list: list containing x, y, and time of each stroke
@@ -113,13 +114,15 @@ def decode_drawing(raw_strokes, line_thickness=5, time_color=True,
     @param num_channels - int: number of color channels
     @param size - int: number of pixels to resize to
 
-    @returns np.array (256 x 256 x num_channels) - decoded drawing as np array
+    @returns np.array (size x size x num_channels) - decoded drawing as np array
     """
     img = np.zeros((256, 256, num_channels), dtype=np.uint8)
     for t, stroke in enumerate(raw_strokes):
-        part_num = int(float(t) / len(raw_strokes) * num_channels)
+        part_num = t % num_channels
         for i in range(len(stroke[0]) - 1):
-            color = 255 - min(t, 20) * 10 if time_color else 255
+            color = 255
+            if time_color:
+                color -= min(t, 10) * 20 + min(i, 40) * 3
             if part_color:
                 if part_num == 1:
                     color = (0, color, color)
@@ -150,6 +153,18 @@ def affine_transform_drawing(raw_strokes, bounding_box):
         stroke_y = [(dy * y) // 256 + y1 for y in stroke[1]]
         transformed_strokes.append([stroke_x, stroke_y])
     return transformed_strokes
+
+def get_bounds(raw_strokes):
+    """
+    Gets the maximum x and y values of the strokes
+    @param raw_strokes - list: list containing x, y, and time of each stroke
+    @returns max_x, max_y - int, int: the boounds of the strokes
+    """
+    max_x = max_y = 0
+    for stroke in raw_strokes:
+        max_x = max(max_x, max(stroke[0]))
+        max_y = max(max_y, max(stroke[1]))
+    return max_x, max_y
 
 if __name__ == '__main__':
     parse_dataset()
