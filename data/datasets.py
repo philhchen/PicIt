@@ -67,7 +67,7 @@ class QuickDrawDataset(data.Dataset):
                         or x1 > X2 - slack or y1 > Y2 - slack):
                     return False
             return True
-        
+
         # Helper to get in-bounds anchor point for a given scale
         def get_anchor_point(scale, bounds):
             x1 = random.randint(0, (int)(255 - scale * bounds[0]))
@@ -104,7 +104,7 @@ class QuickDrawDataset(data.Dataset):
             boxes.append(box)
 
         composite_sketch, labels = self.generate_composite_drawing(boxes, indices)
-        return composite_sketch, labels
+        return composite_sketch, boxes, labels
 
     def generate_composite_drawing(self, boxes, indices):
         """
