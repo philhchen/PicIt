@@ -1,15 +1,14 @@
-import os
+import json
+import multiprocessing as mp
 import ndjson
+import os
 import random
 
 import numpy as np
 from torch.utils import data
 
+from .constants import *
 from .data_utils import *
-
-DIR_NAME = os.path.join(
-    os.path.dirname(__file__), '../dataset/raw'
-)
 
 class QuickDrawDataset(data.Dataset):
     """
@@ -20,7 +19,7 @@ class QuickDrawDataset(data.Dataset):
     root/cat/123.ndjson
     root/cat/nsdf3.ndjson
     """
-    def __init__(self, root=DIR_NAME, img_size=224):
+    def __init__(self, root=RAW_DIR_NAME, img_size=IMG_SIZE):
         """
         @param root - str: Root directory path.
         @param img_size - int: the size to convert images in the dataset
@@ -57,6 +56,7 @@ class QuickDrawDataset(data.Dataset):
         Generates a random composite drawing by creating bounding boxes
         for a randomly selected set of drawings and creating the composite
         sketch formed by the drawings
+        @return composite_sketch, boxes, labels
         """
         # Helper to ensure boxes are sufficiently far apart
         def is_valid_box(boxes, new_box, slack=0):
@@ -127,3 +127,26 @@ class QuickDrawDataset(data.Dataset):
             composite_sketch += transformed
             labels.append(label)
         return composite_sketch, labels
+
+def create_composite_dataset(count, root_raw=RAW_DIR_NAME,
+                             root_composite=COMPOSITE_DIR_NAME,
+                             min=2, max=8):
+    """
+    Generates a composite dataset from concatenating raw sketches.
+    @param count - int: number of images to generate
+    @param root_raw - str: path to directory containing folders of raw sketches
+    @param root_composite - str: path to directory to save composite dataset
+    @param min - int: minimum number of raw images per composite image (inclusive)
+    @param max - int: maximum number of raw images per composite image (inclusive)
+    """
+    quickdraw_dataset = QuickDrawDataset(root=root_raw)
+    nums = np.random.randint(min, max + 1, count)
+
+    for i, num in enumerate(nums):
+        composite_sketch, boxes, labels = quickdraw_dataset.get_random_composite_drawing(num)
+        img = decode_drawing(composite_sketch)
+        filename_img = os.path.join(root_composite, '{:0>5d}.jpg'.format(i))
+        filename_label = os.path.join(root_composite, '{:0>5d}.json'.format(i))
+        cv2.imwrite(filename_img, img)
+        json.dump(filename_label)
+    

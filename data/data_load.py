@@ -2,6 +2,8 @@ from torch.utils.data import DataLoader
 from torchvision import transforms
 from torchvision.datasets import ImageFolder
 
+from .constants import *
+
 def load_data(data_folder, batch_size, phase, verbose=False, **kwargs):
     """
     @param data_folder - str: path to root of data directory
@@ -13,18 +15,18 @@ def load_data(data_folder, batch_size, phase, verbose=False, **kwargs):
     """
     transform = {
         'train': transforms.Compose(
-            [transforms.Resize([224, 224]),
+            [transforms.Resize([IMG_SIZE, IMG_SIZE]),
             transforms.RandomHorizontalFlip(),
             transforms.ToTensor(),
             transforms.Normalize(mean=[0.485, 0.456, 0.406],
                                  std=[0.229, 0.224, 0.225])]),
         'val': transforms.Compose(
-            [transforms.Resize([224, 224]),
+            [transforms.Resize([IMG_SIZE, IMG_SIZE]),
             transforms.ToTensor(),
             transforms.Normalize(mean=[0.485, 0.456, 0.406],
                                  std=[0.229, 0.224, 0.225])]),
         'test': transforms.Compose(
-            [transforms.Resize([224, 224]),
+            [transforms.Resize([IMG_SIZE, IMG_SIZE]),
             transforms.ToTensor(),
             transforms.Normalize(mean=[0.485, 0.456, 0.406],
                                  std=[0.229, 0.224, 0.225])])

@@ -8,9 +8,7 @@ import cv2
 import numpy as np
 import skimage.transform
 
-DIR_NAME = os.path.join(
-    os.path.dirname(__file__), '../dataset/raw'
-)
+from .constants import *
 
 def save_training_example(drawing, path, decode=None):
     """
@@ -44,7 +42,7 @@ def save_training_example(drawing, path, decode=None):
     # Return only the label with the key_id for sake of space.
     return result
 
-def parse_label(filename, path=DIR_NAME, decode=None):
+def parse_label(filename, path=RAW_DIR_NAME, decode=None):
     """
     Helper for parse_dataset: parses a single .ndjson file associated with the
     specified path
@@ -71,7 +69,7 @@ def parse_label(filename, path=DIR_NAME, decode=None):
             list_ids.append(example_filename)
     return list_ids
 
-def parse_dataset(path=DIR_NAME, decode=None, early_return=True):
+def parse_dataset(path=RAW_DIR_NAME, decode=None, early_return=True):
     """
     Restructures dataset from '.ndjson' files into folders. Each folder will be
     of the form 'dataset/{LABEL}' and will contain 1 file per training example.
@@ -109,7 +107,6 @@ def parse_dataset(path=DIR_NAME, decode=None, early_return=True):
     files = [f for f in files if os.path.splitext(f)[1] == '.ndjson']
     list_ids_temp = []
 
-    # parse = lambda filename : parse_label(filename, path=path, decode=decode)
     parse = functools.partial(parse_label, path=path, decode=decode)
     pool.map_async(parse, files, callback=list_ids_temp.extend)
     pool.close()
@@ -191,6 +188,20 @@ def get_bounds(raw_strokes):
         max_x = max(max_x, max(stroke[0]))
         max_y = max(max_y, max(stroke[1]))
     return max_x, max_y
+
+def get_annotations(boxes, labels):
+    """
+    @returns annotations : list[dict]
+    """
+    annotations = []
+    for i, box in enumerate(boxes):
+        annotation = {
+            'bbox': box,
+            'bbox_mode': 0,
+            'category_id': labels[i]
+        }
+        annotations.append(annotation)
+    return annotations
 
 if __name__ == '__main__':
     parse_dataset(decode=None)
