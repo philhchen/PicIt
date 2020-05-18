@@ -148,5 +148,7 @@ def create_composite_dataset(count, root_raw=RAW_DIR_NAME,
         filename_img = os.path.join(root_composite, '{:0>5d}.jpg'.format(i))
         filename_label = os.path.join(root_composite, '{:0>5d}.json'.format(i))
         cv2.imwrite(filename_img, img)
-        json.dump(filename_label)
+        annotations = get_annotations(boxes, labels)
+        with open(filename_label, mode='w') as f:
+            json.dump(annotations, f)
     
