@@ -156,7 +156,7 @@ def create_composite_dataset(count, mode, root_raw=RAW_DIR_NAME,
     for i, num in enumerate(nums):
         composite_sketch, boxes, labels = quickdraw_dataset.get_random_composite_drawing(num)
         img = decode_drawing(composite_sketch)
-        affine_transform_boxes(boxes)
+        boxes = affine_transform_boxes(boxes)
         filename_img = os.path.join(dir_name, '{:0>7d}.jpg'.format(i))
         cv2.imwrite(filename_img, img)
         img_infos.append({

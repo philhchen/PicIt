@@ -191,8 +191,7 @@ def get_bounds(raw_strokes):
 
 def affine_transform_boxes(boxes, from_scale=256, to_scale=IMG_SIZE):
     scale_fn = lambda x : to_scale * x // from_scale
-    for box in boxes:
-        map(scale_fn, box)
+    return [list(map(scale_fn, box)) for box in boxes]
 
 def get_annotations(boxes, labels):
     """
