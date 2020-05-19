@@ -159,7 +159,7 @@ def create_composite_dataset(count, mode, root_raw=RAW_DIR_NAME,
         filename_img = os.path.join(dir_name, '{:0>7d}.jpg'.format(i))
         cv2.imwrite(filename_img, img)
         img_infos.append({
-            'filename': filename_img,
+            'file_name': filename_img,
             'height': IMG_SIZE,
             'width': IMG_SIZE,
             'image_id': i,
