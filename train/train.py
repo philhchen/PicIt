@@ -1,7 +1,12 @@
 import copy
+import os
 import time
 import torch
 import torch.optim as optim
+
+MODEL_SAVE_DIR = os.path.join(
+    os.path.dirname(__file__), '../models/saved_models/'
+)
 
 def get_optimizer(model, feature_extract):
     """
@@ -27,7 +32,8 @@ def get_optimizer(model, feature_extract):
     # Observe that all parameters are being optimized
     return optim.SGD(params_to_update, lr=0.001, momentum=0.9)
 
-def train_model(model, dataloaders, criterion, optimizer, num_epochs=25):
+def train_model(model, dataloaders, criterion, optimizer, num_epochs=25,
+                print_every=1000, save_dir=MODEL_SAVE_DIR):
     since = time.time()
     val_acc_history = []
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -50,7 +56,9 @@ def train_model(model, dataloaders, criterion, optimizer, num_epochs=25):
             running_corrects = 0
 
             # Iterate over data.
-            for inputs, labels in dataloaders[phase]:
+            iter = 0
+            for iter, data in enumerate(dataloaders[phase]):
+                inputs, labels = data
                 inputs = inputs.to(device)
                 labels = labels.to(device)
 
@@ -75,6 +83,20 @@ def train_model(model, dataloaders, criterion, optimizer, num_epochs=25):
                 running_loss += loss.item() * inputs.size(0)
                 running_corrects += torch.sum(preds == labels.data)
 
+                if iter % print_every == 0:
+                    print('Iter: ', iter)
+                    print('Running loss: {:4f}'.format(
+                        running_loss / ((iter + 1) * inputs.size(0))))
+                    print('Running accuracy: {:4f}'.format(
+                        running_corrects.double() / ((iter + 1) * inputs.size(0))))
+                    torch.save({
+                        'epoch': epoch,
+                        'model_state_dict': model.state_dict(),
+                        'optimizer_state_dict': optimizer.state_dict(),
+                        'loss': loss
+                    }, os.path.join(save_dir,
+                                    'checkpoint-epoch-{}-iter-{}'.format(epoch, iter)))
+
             epoch_loss = running_loss / len(dataloaders[phase].dataset)
             epoch_acc = running_corrects.double() / len(dataloaders[phase].dataset)
 
@@ -93,6 +115,6 @@ def train_model(model, dataloaders, criterion, optimizer, num_epochs=25):
     print('Training complete in {:.0f}m {:.0f}s'.format(time_elapsed // 60, time_elapsed % 60))
     print('Best val Acc: {:4f}'.format(best_acc))
 
-    # load best model weights
+    # load and save best model weights
     model.load_state_dict(best_model_wts)
     return model, val_acc_history

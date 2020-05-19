@@ -1,8 +1,27 @@
 from torch.utils.data import DataLoader
+from torch.utils.data._utils.collate import default_collate
 from torchvision import transforms
 from torchvision.datasets import ImageFolder
 
 from .constants import *
+
+class ImageFolderEX(ImageFolder):
+    def __getitem__(self, index):
+        try:
+            path, target = self.samples[index]
+            sample = self.loader(path)
+            if self.transform is not None:
+                sample = self.transform(sample)
+            if self.target_transform is not None:
+                target = self.target_transform(target)
+        except:
+            print('Exception in loading image')
+            return None
+        return sample, target
+
+def collate_fn(batch):
+    batch = list(filter(lambda x: x is not None, batch))
+    return default_collate(batch)
 
 def load_data(data_folder, batch_size, phase, verbose=False, **kwargs):
     """
@@ -31,10 +50,10 @@ def load_data(data_folder, batch_size, phase, verbose=False, **kwargs):
             transforms.Normalize(mean=[0.485, 0.456, 0.406],
                                  std=[0.229, 0.224, 0.225])])
         }
-    data = ImageFolder(root=data_folder, 
-                       transform=transform[phase])
+    data = ImageFolderEX(root=data_folder, 
+                         transform=transform[phase])
     data_loader = DataLoader(data, batch_size=batch_size, shuffle=True, 
-                             **kwargs, 
+                             collate_fn=collate_fn, **kwargs,
                              drop_last = True if phase == 'train' else False)
     if verbose:
         print('Number of training examples: ', len(data))

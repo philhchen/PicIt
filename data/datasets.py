@@ -128,27 +128,47 @@ class QuickDrawDataset(data.Dataset):
             labels.append(label)
         return composite_sketch, labels
 
-def create_composite_dataset(count, root_raw=RAW_DIR_NAME,
+def create_composite_dataset(count, mode, root_raw=RAW_DIR_NAME,
                              root_composite=COMPOSITE_DIR_NAME,
                              min=2, max=8):
     """
     Generates a composite dataset from concatenating raw sketches.
     @param count - int: number of images to generate
+    @param mode - str ('train', 'val', or 'test'): mode for composite dataset
     @param root_raw - str: path to directory containing folders of raw sketches
     @param root_composite - str: path to directory to save composite dataset
     @param min - int: minimum number of raw images per composite image (inclusive)
     @param max - int: maximum number of raw images per composite image (inclusive)
     """
+    if mode not in ['train', 'val', 'test']:
+        print('Error: mode must be train, val, or test.')
+        return
+    if not os.path.exists(root_composite):
+        os.makedirs(root_composite)
+    dir_name = os.path.join(root_composite, mode)
+    if not os.path.exists(dir_name):
+        os.makedirs(dir_name)
+
     quickdraw_dataset = QuickDrawDataset(root=root_raw)
     nums = np.random.randint(min, max + 1, count)
 
+    # Get the specified number of random composite images
+    img_infos = []
     for i, num in enumerate(nums):
         composite_sketch, boxes, labels = quickdraw_dataset.get_random_composite_drawing(num)
         img = decode_drawing(composite_sketch)
-        filename_img = os.path.join(root_composite, '{:0>5d}.jpg'.format(i))
-        filename_label = os.path.join(root_composite, '{:0>5d}.json'.format(i))
+        filename_img = os.path.join(dir_name, '{:0>7d}.jpg'.format(i))
         cv2.imwrite(filename_img, img)
-        annotations = get_annotations(boxes, labels)
-        with open(filename_label, mode='w') as f:
-            json.dump(annotations, f)
+        img_infos.append({
+            'filename': filename_img,
+            'height': IMG_SIZE,
+            'width': IMG_SIZE,
+            'image_id': i,
+            'annotations': get_annotations(boxes, labels)
+        })
+
+    # Write image infos to ndjson file
+    filename_labels = os.path.join(dir_name, 'data.ndjson')
+    with open(filename_labels, 'w') as f:
+        ndjson.dump(img_infos, f)
     
