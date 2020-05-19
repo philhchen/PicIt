@@ -128,7 +128,7 @@ class QuickDrawDataset(data.Dataset):
             labels.append(label)
         return composite_sketch, labels
 
-def create_composite_dataset(count, mode, root_raw=RAW_DIR_NAME,
+def create_composite_dataset(count, mode, quickdraw_dataset,
                              root_composite=COMPOSITE_DIR_NAME,
                              min=2, max=8):
     """
@@ -149,7 +149,8 @@ def create_composite_dataset(count, mode, root_raw=RAW_DIR_NAME,
     if not os.path.exists(dir_name):
         os.makedirs(dir_name)
 
-    quickdraw_dataset = QuickDrawDataset(root=root_raw)
+    if quickdraw_dataset == None:
+        quickdraw_dataset = QuickDrawDataset(root=RAW_DIR_NAME)
     nums = np.random.randint(min, max + 1, count)
 
     # Get the specified number of random composite images
@@ -168,8 +169,15 @@ def create_composite_dataset(count, mode, root_raw=RAW_DIR_NAME,
             'annotations': get_annotations(boxes, labels)
         })
 
-    # Write image infos to ndjson file
-    filename_labels = os.path.join(dir_name, 'data.json')
-    with open(filename_labels, 'w') as f:
+    # Write image infos to json file
+    filename_data = os.path.join(dir_name, 'data.json')
+    filename_labels = os.path.join(dir_name, 'labels.json')
+    with open(filename_data, 'w') as f:
         json.dump(img_infos, f)
+    with open(filename_labels, 'w') as f:
+        labels_dict = quickdraw_dataset.labels_to_indices
+        labels = ['' for i in range(len(labels_dict))]
+        for label in labels_dict:
+            labels[labels_dict[label]] = label
+        json.dump(labels, f)
     
