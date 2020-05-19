@@ -73,6 +73,13 @@ class QuickDrawDataset(data.Dataset):
             x1 = random.randint(0, (int)(255 - scale * bounds[0]))
             y1 = random.randint(0, (int)(255 - scale * bounds[1]))
             return x1, y1
+        
+        def get_boxes(x1, y1, scale, bounds):
+            x2_f, y2_f = (int)(x1 + scale * 256), (int)(y1 + scale * 256)
+            x2_b, y2_b = (int)(x1 + scale * bounds[0]), (int)(y1 + scale * bounds[1])
+            frame_box = [x1, y1, x2_f, y2_f]
+            bounding_box = [x1, y1, x2_b, y2_b]
+            return frame_box, bounding_box
 
         # Get random indices for which drawings to choose from
         indices = np.random.choice(self.__len__(), num_components)
@@ -84,27 +91,27 @@ class QuickDrawDataset(data.Dataset):
                                   num_components).clip(0.15, 0.85)
 
         # Slack to determine how much images can overlap (number of pixels)
-        slack = (int)(np.sqrt(2000 / num_components))
+        slack = (int)(np.sqrt(500 / num_components))
 
         # Generate bounding boxes using the scale factors
-        boxes = []
+        frame_boxes = []
+        bounding_boxes = []
         for i in range(num_components):
             drawing, label = self.__getitem__(indices[i], False)
             bounds = get_bounds(drawing)
             scale = scales[i]
             x1, y1 = get_anchor_point(scale, bounds)
-            x2, y2 = (int)(x1 + scale * 256), (int)(y1 + scale * 256)
-            box = [x1, y1, x2, y2]
+            frame_box, bounding_box = get_boxes(x1, y1, scale, bounds)
 
-            while not is_valid_box(boxes, box, slack):
+            while not is_valid_box(bounding_boxes, bounding_box, slack):
                 scale *= 0.99
                 x1, y1 = get_anchor_point(scale, bounds)
-                x2, y2 = (int)(x1 + scale * 256), (int)(y1 + scale * 256)
-                box = [x1, y1, x2, y2]
-            boxes.append(box)
+                frame_box, bounding_box = get_boxes(x1, y1, scale, bounds)
+            frame_boxes.append(frame_box)
+            bounding_boxes.append(bounding_box)
 
-        composite_sketch, labels = self.generate_composite_drawing(boxes, indices)
-        return composite_sketch, boxes, labels
+        composite_sketch, labels = self.generate_composite_drawing(frame_boxes, indices)
+        return composite_sketch, bounding_boxes, labels
 
     def generate_composite_drawing(self, boxes, indices):
         """
