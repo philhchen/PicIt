@@ -157,10 +157,11 @@ def create_composite_dataset(count, mode, root_raw=RAW_DIR_NAME,
     for i, num in enumerate(nums):
         composite_sketch, boxes, labels = quickdraw_dataset.get_random_composite_drawing(num)
         img = decode_drawing(composite_sketch)
+        boxes = affine_transform_boxes(boxes)
         filename_img = os.path.join(dir_name, '{:0>7d}.jpg'.format(i))
         cv2.imwrite(filename_img, img)
         img_infos.append({
-            'filename': filename_img,
+            'file_name': filename_img,
             'height': IMG_SIZE,
             'width': IMG_SIZE,
             'image_id': i,
@@ -168,7 +169,7 @@ def create_composite_dataset(count, mode, root_raw=RAW_DIR_NAME,
         })
 
     # Write image infos to ndjson file
-    filename_labels = os.path.join(dir_name, 'data.ndjson')
+    filename_labels = os.path.join(dir_name, 'data.json')
     with open(filename_labels, 'w') as f:
-        ndjson.dump(img_infos, f)
+        json.dump(img_infos, f)
     

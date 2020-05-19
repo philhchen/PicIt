@@ -2,3 +2,4 @@ __pycache__
 */__pycache__
 dataset/*
 .env
+output/*
