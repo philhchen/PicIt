@@ -5,6 +5,7 @@ import os
 import random
 
 import numpy as np
+from pycocotools import mask
 from torch.utils import data
 
 from .constants import *
@@ -50,6 +51,36 @@ class QuickDrawDataset(data.Dataset):
                                              size=self.img_size)
         label = self.labels_to_indices[drawing[0]['word']]
         return drawing_decoded, label
+    
+    def get_binary_segmentation(self, drawing):
+        """
+        @param drawing - list containing x, y, and time of each stroke of
+                         the drawing
+        @returns dict - per-pixel segmentation mask 
+        """
+        img_mask = decode_drawing(drawing).sum(axis=-1) != 0
+
+        min_nonzero = np.where(img_mask.any(axis=0), img_mask.argmax(axis=0), -1)
+        val = img_mask.shape[0] - np.flip(img_mask, axis=0).argmax(axis=0) - 1
+        max_nonzero = np.where(img_mask.any(axis=0), val, -1)
+
+        bimask_x = np.zeros(img_mask.shape, dtype='uint8')
+        for i in range(len(bimask_x)):
+            if min_nonzero[i] != -1:
+                bimask_x[min_nonzero[i] : max_nonzero[i] + 1, i] = True
+        
+        min_nonzero = np.where(img_mask.any(axis=1), img_mask.argmax(axis=1), -1)
+        val = img_mask.shape[1] - np.flip(img_mask, axis=1).argmax(axis=1) - 1
+        max_nonzero = np.where(img_mask.any(axis=1), val, -1)
+
+        bimask_y = np.zeros(img_mask.shape, dtype='uint8')
+        for i in range(len(bimask_y)):
+            if min_nonzero[i] != -1:
+                bimask_y[i, min_nonzero[i] : max_nonzero[i] + 1] = True
+
+        bimask = np.logical_and(bimask_x, bimask_y)
+        bimask_encoded = mask.encode(np.asarray(bimask, order="F"))
+        return bimask_encoded
 
     def get_random_composite_drawing(self, num_components):
         """
@@ -110,8 +141,8 @@ class QuickDrawDataset(data.Dataset):
             frame_boxes.append(frame_box)
             bounding_boxes.append(bounding_box)
 
-        composite_sketch, labels = self.generate_composite_drawing(frame_boxes, indices)
-        return composite_sketch, bounding_boxes, labels
+        composite_sketch, segmentations, labels = self.generate_composite_drawing(frame_boxes, indices)
+        return composite_sketch, bounding_boxes, segmentations, labels
 
     def generate_composite_drawing(self, boxes, indices):
         """
@@ -127,13 +158,15 @@ class QuickDrawDataset(data.Dataset):
         """
         assert len(boxes) == len(indices)
         composite_sketch = []
+        segmentations = []
         labels = []
         for i, box in enumerate(boxes):
             raw_strokes, label = self.__getitem__(indices[i], False)
             transformed = affine_transform_drawing(raw_strokes, box)
             composite_sketch += transformed
+            segmentations.append(self.get_binary_segmentation(transformed))
             labels.append(label)
-        return composite_sketch, labels
+        return composite_sketch, segmentations, labels
 
 def create_composite_dataset(count, mode, quickdraw_dataset,
                              root_composite=COMPOSITE_DIR_NAME,
@@ -163,7 +196,7 @@ def create_composite_dataset(count, mode, quickdraw_dataset,
     # Get the specified number of random composite images
     img_infos = []
     for i, num in enumerate(nums):
-        composite_sketch, boxes, labels = quickdraw_dataset.get_random_composite_drawing(num)
+        composite_sketch, boxes, segmentations, labels = quickdraw_dataset.get_random_composite_drawing(num)
         img = decode_drawing(composite_sketch)
         boxes = affine_transform_boxes(boxes)
         filename_img = os.path.join(dir_name, '{:0>7d}.jpg'.format(i))
@@ -173,7 +206,7 @@ def create_composite_dataset(count, mode, quickdraw_dataset,
             'height': IMG_SIZE,
             'width': IMG_SIZE,
             'image_id': i,
-            'annotations': get_annotations(boxes, labels)
+            'annotations': get_annotations(boxes, labels, segmentations)
         })
 
     # Write image infos to json file

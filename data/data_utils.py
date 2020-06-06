@@ -193,16 +193,20 @@ def affine_transform_boxes(boxes, from_scale=256, to_scale=IMG_SIZE):
     scale_fn = lambda x : to_scale * x // from_scale
     return [list(map(scale_fn, box)) for box in boxes]
 
-def get_annotations(boxes, labels):
+def get_annotations(boxes, labels, segmentations):
     """
     @returns annotations : list[dict]
     """
     annotations = []
-    for i, box in enumerate(boxes):
+    for box, label, segmentation in zip(boxes, labels, segmentations):
         annotation = {
             'bbox': box,
             'bbox_mode': 0,
-            'category_id': labels[i]
+            'category_id': label,
+            'segmentation': {
+                'size': segmentation['size'],
+                'counts': segmentation['counts'].decode('utf-8')
+            }
         }
         annotations.append(annotation)
     return annotations
