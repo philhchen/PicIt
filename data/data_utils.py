@@ -6,6 +6,7 @@ import random
 
 import cv2
 import numpy as np
+from pycocotools import mask
 import skimage.transform
 
 from .constants import *
@@ -99,7 +100,7 @@ def parse_dataset(path=RAW_DIR_NAME, decode=None, early_return=True):
         for list_id in list_ids:
             label = os.path.basename(os.path.dirname(list_id))
             labels.add(label)
-        return list_ids, labels
+        return list_ids, list(labels)
 
     # Loop through all '.ndjson' files and split into individual files
     pool = mp.Pool(mp.cpu_count())
@@ -189,6 +190,59 @@ def get_bounds(raw_strokes):
         max_y = max(max_y, max(stroke[1]))
     return max_x, max_y
 
+def generate_realistic_sketch(val_image, val_label, val_dataset, quick_draw_dataset, max=5):
+    """
+    Generates COCO image with QuickDraw images in the same positions. If a label 
+    from the COCO image can't be found in the QuickDraw Dataset, it is simply ignored.
+    *may result in black images
+
+    @param val_image is a validation image from the COCO Dataset
+    @param val_label is the corresponding label from the COCO Dataset
+    @param val_dataset is the COCO Dataset module
+    @param quick_draw_dataset is the QuickDraw Dataset object
+    @param max is the maximum number of objects in the image
+    @returns composite sketch, new_boxes, class_ids: the new composite image with corresponding 
+    sketches from COCO image, new bounding boxes within the COCO Data frame, and the class_ids of each
+    object in the image. 
+
+    """
+
+    bounding_boxes = val_label[:, :4]
+    bounding_boxes = bounding_boxes.astype(int)
+    class_ids = val_label[:, 4:5]
+    quick_size = 256
+    coco_size = 224
+    X = val_image.shape[0]
+    Y = val_image.shape[1]
+    draw_indicies = []
+    new_boxes = []
+    new_classids = []
+    for i in range(len(class_ids)):
+        if i > max:
+            break
+        coco_index = (int)(class_ids[i][0])
+        label = val_dataset.classes[coco_index]
+        if label in quick_draw_dataset.labels_to_images:
+            list = quick_draw_dataset.labels_to_images[label]
+            rand = np.random.randint(0, len(list))
+            draw_img_index = quick_draw_dataset.labels_to_images[label][rand]
+            draw_indicies.append(draw_img_index)
+            box = bounding_boxes[i]
+            resize_box = [(int)(box[0]*quick_size/X), (int)(box[1]*quick_size/Y), (int)(box[2]*quick_size/X), (int)(box[3]*quick_size/Y)]
+            new_boxes.append(resize_box)
+            new_classids.append(coco_index)
+
+    #new_boxes = np.array(new_boxes)
+    #new_classids = np.array(new_classids)
+    composite_sketch, segmentations, labels = quick_draw_dataset.generate_composite_drawing(new_boxes, draw_indicies)
+
+    #Resize to COCO frame
+    for i, box in enumerate(new_boxes):
+        box = [(int)(box[0]*coco_size/quick_size), (int)(box[1]*coco_size/quick_size), (int)(box[2]*coco_size/quick_size), (int)(box[3]*coco_size/quick_size)]
+        new_boxes[i] = box
+    
+    return composite_sketch, segmentations, new_boxes, new_classids
+
 def affine_transform_boxes(boxes, from_scale=256, to_scale=IMG_SIZE):
     scale_fn = lambda x : to_scale * x // from_scale
     return [list(map(scale_fn, box)) for box in boxes]
@@ -210,6 +264,24 @@ def get_annotations(boxes, labels, segmentations):
         }
         annotations.append(annotation)
     return annotations
+
+def get_segmentation_images(segmentations, labels):
+    """
+    @param segmentations - list[dict]: list of RLE encoding of segmentation
+                binary masks
+    @param labels - list: list of indices of labels
+    @param coco - QuickDrawDataset
+
+    @returns inst_img
+    @returns label_img
+    """
+    decoded_segmentations = [mask.decode(s) for s in segmentations]
+    inst_img = np.zeros(decoded_segmentations[0].shape)
+    label_img = np.zeros(decoded_segmentations[0].shape)
+    for i, segmentation in enumerate(decoded_segmentations):
+        inst_img = np.maximum(inst_img, i * segmentation)
+        label_img = np.maximum(label_img, labels[i] * segmentation)
+    return inst_img, label_img
 
 if __name__ == '__main__':
     parse_dataset(decode=None)

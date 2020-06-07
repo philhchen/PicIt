@@ -29,6 +29,13 @@ class QuickDrawDataset(data.Dataset):
         self.root = root
         self.img_size = img_size
         self.labels_to_indices = {}
+        self.labels_to_images = {}
+
+        for i, list_id in enumerate(self.list_IDs):
+            label = os.path.basename(os.path.dirname(list_id))
+            if label not in self.labels_to_images:
+                self.labels_to_images[label] = []
+            self.labels_to_images[label].append(i)
 
         for i, label in enumerate(self.labels):
             self.labels_to_indices[label] = i
@@ -212,6 +219,72 @@ def create_composite_dataset(count, mode, quickdraw_dataset,
     # Write image infos to json file
     filename_data = os.path.join(dir_name, 'data.json')
     filename_labels = os.path.join(dir_name, 'labels.json')
+    with open(filename_data, 'w') as f:
+        json.dump(img_infos, f)
+    with open(filename_labels, 'w') as f:
+        labels_dict = quickdraw_dataset.labels_to_indices
+        labels = ['' for i in range(len(labels_dict))]
+        for label in labels_dict:
+            labels[labels_dict[label]] = label
+        json.dump(labels, f)
+
+def create_realistic_composite_dataset(count, mode, coco_dataset, quickdraw_dataset,
+                             root_composite=REALISTIC_DIR_NAME,
+                             min=1, max=5):
+    """
+    Generates a composite dataset from concatenating raw sketches.
+    @param count - int: number of images to generate
+    @param mode - str ('train', 'val', or 'test'): mode for composite dataset
+    @param root_raw - str: path to directory containing folders of raw sketches
+    @param root_composite - str: path to directory to save composite dataset
+    @param min - int: minimum number of raw images per composite image (inclusive)
+    @param max - int: maximum number of raw images per composite image (inclusive)
+    """
+    if not os.path.exists(root_composite):
+        os.makedirs(root_composite)
+    dirs = {}
+    modes = ['img', 'label', 'inst']
+    for mode in modes:
+        dirs[mode] = os.path.join(root_composite, mode)
+        if not os.path.exists(dirs[mode]):
+            os.makedirs(dirs[mode])
+
+    if quickdraw_dataset == None:
+        quickdraw_dataset = QuickDrawDataset(root=RAW_DIR_NAME)
+
+    # Get the specified number of random composite images
+    img_infos = []
+    for i in range(count):
+        val_image, val_label = coco_dataset[i]
+        composite_sketch, segmentations, boxes, labels = generate_realistic_sketch(
+            val_image, val_label, coco_dataset, quickdraw_dataset, max=max)
+        
+        if len(boxes) == 0:
+            continue
+
+        imgs = {}
+        filenames = {}
+
+        imgs['img'] = decode_drawing(composite_sketch)
+        boxes = affine_transform_boxes(boxes)
+        for mode in modes:
+            filenames[mode] = os.path.join(dirs[mode], '{:0>7d}.png'.format(i))
+        
+        imgs['inst'], imgs['label'] = get_segmentation_images(segmentations, labels)
+        for mode in modes:
+            cv2.imwrite(filenames[mode], imgs[mode])
+
+        img_infos.append({
+            'file_name': filenames['img'],
+            'height': IMG_SIZE,
+            'width': IMG_SIZE,
+            'image_id': i,
+            'annotations': get_annotations(boxes, labels, segmentations)
+        })
+
+    # Write image infos to json file
+    filename_data = os.path.join(root_composite, 'data.json')
+    filename_labels = os.path.join(root_composite, 'labels.json')
     with open(filename_data, 'w') as f:
         json.dump(img_infos, f)
     with open(filename_labels, 'w') as f:

@@ -36,12 +36,9 @@ def find_nearest_neighbor(model=predictor):
     for d in random.sample(dataset_dicts, 3):    
         im = cv2.imread(d["file_name"])
         outputs = model(im)
-        print("Starting to print outputs of prediction")
         print(outputs)
-        print(outputs["instances"]._fields["pred_boxes"].tensor)
-        v = Visualizer(im[:, :, ::-1], metadata=composite_metadata, scale=0.8)
-        v = v.draw_instance_predictions(outputs["instances"].to("cpu"))
-        plt.imshow(v.get_image()[:, :, ::-1])
+        print("Starting to print outputs of prediction")
+        print(outputs["instances"].pred_boxes)
 
 def main():
     find_nearest_neighbor()
