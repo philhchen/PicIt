@@ -19,7 +19,7 @@ kiwisolver==1.2.0
 matplotlib==3.2.1
 ndjson==0.3.1
 networkx==2.4
-numpy==1.18.3
+numpy==1.22.0
 opencv-python==4.2.0.34
 parso==0.6.2
 pexpect==4.8.0
